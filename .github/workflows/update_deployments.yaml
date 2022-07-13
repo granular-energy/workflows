@@ -1,0 +1,59 @@
+name: Update deployments
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: Image name with registry name & without tag
+        required: true
+        type: string
+      tag:
+        required: true
+        type: string
+      overlay:
+        required: true
+        type: string
+      application:
+        required: true
+        type: string
+      deployments-repository:
+        required: false
+        default: "granular-energy/granular-deployments"
+        type: string
+      kustomize-version:
+        required: false
+        default: "4.5.5"
+        type: string
+    secrets:
+      private_access_token:
+        required: true
+
+jobs:
+  update-image:
+    runs-on: 'ubuntu-latest'
+    steps:
+    - name: Checkout deployments repository
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ inputs.deployments-repository }}
+        ref: main
+        token: ${{ secrets.private_access_token }}
+
+    - name: Install Kustomize
+      run: |
+        curl -sfLo kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${{ inputs.kustomize-version }}/kustomize_v${{ inputs.kustomize-version }}_linux_amd64.tar.gz
+        tar -xvzf kustomize.tar.gz
+        rm kustomize.tar.gz
+        chmod u+x ./kustomize
+
+    - name: Setup git config
+      run: |
+        git config user.name "GranuBot"
+        git config user.email "<>"
+
+    - run: |
+        cd ${{ inputs.application }}/overlays/${{ inputs.overlay }}
+        $GITHUB_WORKSPACE/kustomize edit set image "${{ inputs.image_name }}=${{ inputs.image_name }}:${{ inputs.tag }}"
+        git add -A
+        git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.application }}/overlays/${{ inputs.overlay }}"
+        git push origin main
