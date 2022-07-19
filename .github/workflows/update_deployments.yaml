@@ -13,7 +13,13 @@ on:
       overlay:
         required: true
         type: string
+      workspace:
+        required: true
+        type: string
       application:
+        required: true
+        type: string
+      kubernetes-deployment:
         required: true
         type: string
       deployments-repository:
@@ -24,8 +30,18 @@ on:
         required: false
         default: "4.5.5"
         type: string
+      wait-argocd-pull:
+        required: false
+        default: 10
+        type: number
     secrets:
       private_access_token:
+        required: true
+      ssh-user:
+        required: true
+      ssh-key:
+        required: true
+      ssh-host:
         required: true
 
 jobs:
@@ -51,9 +67,34 @@ jobs:
         git config user.name "GranuBot"
         git config user.email "<>"
 
-    - run: |
-        cd ${{ inputs.application }}/overlays/${{ inputs.overlay }}
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh/
+        echo "$SSH_KEY" > ~/.ssh/jumpbox.key
+        chmod 600 ~/.ssh/jumpbox.key
+        cat >>~/.ssh/config <<END
+        Host jumpbox
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile ~/.ssh/jumpbox.key
+          StrictHostKeyChecking no
+        END
+      env:
+        SSH_USER: ${{ secrets.ssh_user }}
+        SSH_KEY: ${{ secrets.ssh_key }}
+        SSH_HOST: ${{ secrets.ssh_host }}
+
+    - name: Kustomize build and commit
+      run: |
+        cd ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}
         $GITHUB_WORKSPACE/kustomize edit set image "${{ inputs.image_name }}=${{ inputs.image_name }}:${{ inputs.tag }}"
         git add -A
-        git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.application }}/overlays/${{ inputs.overlay }}"
+        git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}"
         git push origin main
+
+    - name: Sync Argocd
+      run: |
+        sleep ${{ inputs.wait-argocd-pull }}
+        ssh jumpbox 'argocd app sync ${{ inputs.application }} --timeout 30'
+        ssh jumpbox 'argocd app wait --sync ${{ inputs.application }} --timeout 30'
+        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes-deployment }}'
