@@ -22,6 +22,12 @@ on:
       kubernetes-deployment:
         required: true
         type: string
+      ssh-jumpbox-host:
+        required: true
+        type: string
+      ssh-jumpbox-user:
+        required: true
+        type: string
       deployments-repository:
         required: false
         default: "granular-energy/granular-deployments"
@@ -37,11 +43,7 @@ on:
     secrets:
       private_access_token:
         required: true
-      ssh-user:
-        required: true
-      ssh-key:
-        required: true
-      ssh-host:
+      ssh-jumpbox-key:
         required: true
 
 jobs:
@@ -80,9 +82,9 @@ jobs:
           StrictHostKeyChecking no
         END
       env:
-        SSH_USER: ${{ secrets.ssh_user }}
-        SSH_KEY: ${{ secrets.ssh_key }}
-        SSH_HOST: ${{ secrets.ssh_host }}
+        SSH_USER: ${{ inputs.ssh-jumpbox-user }}
+        SSH_KEY: ${{ secrets.ssh-jumpbox-key }}
+        SSH_HOST: ${{ inputs.ssh-jumpbox-host }}
 
     - name: Kustomize build and commit
       run: |
