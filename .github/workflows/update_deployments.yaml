@@ -25,6 +25,9 @@ on:
       ssh_jumpbox_host:
         required: true
         type: string
+      ssh_jumpbox_port:
+        required: true
+        type: string
       ssh_jumpbox_user:
         required: true
         type: string
@@ -80,11 +83,13 @@ jobs:
           User $SSH_USER
           IdentityFile ~/.ssh/jumpbox.key
           StrictHostKeyChecking no
+          Port $SSH_PORT
         END
       env:
         SSH_USER: ${{ inputs.ssh_jumpbox_user }}
         SSH_KEY: ${{ secrets.ssh_jumpbox_key }}
         SSH_HOST: ${{ inputs.ssh_jumpbox_host }}
+        SSH_PORT: ${{ inputs.ssh_jumpbox_port }}
 
     - name: Kustomize build and commit
       run: |
