@@ -96,8 +96,11 @@ jobs:
         cd ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}
         $GITHUB_WORKSPACE/kustomize edit set image "${{ inputs.image_name }}=${{ inputs.image_name }}:${{ inputs.tag }}"
         git add -A
-        git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}"
-        git push origin main
+        if [ -z `git commit --short`]
+        then
+          git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}"
+          git push origin main
+        fi
 
     - name: Sync Argocd
       run: |
