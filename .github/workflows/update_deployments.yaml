@@ -19,13 +19,13 @@ on:
       application:
         required: true
         type: string
-      kubernetes-deployment:
+      kubernetes_deployment:
         required: true
         type: string
-      ssh-jumpbox-host:
+      ssh_jumpbox_host:
         required: true
         type: string
-      ssh-jumpbox-user:
+      ssh_jumpbox_user:
         required: true
         type: string
       deployments-repository:
@@ -43,7 +43,7 @@ on:
     secrets:
       private_access_token:
         required: true
-      ssh-jumpbox-key:
+      ssh_jumpbox_key:
         required: true
 
 jobs:
@@ -82,9 +82,9 @@ jobs:
           StrictHostKeyChecking no
         END
       env:
-        SSH_USER: ${{ inputs.ssh-jumpbox-user }}
-        SSH_KEY: ${{ secrets.ssh-jumpbox-key }}
-        SSH_HOST: ${{ inputs.ssh-jumpbox-host }}
+        SSH_USER: ${{ inputs.ssh_jumpbox_user }}
+        SSH_KEY: ${{ secrets.ssh_jumpbox_key }}
+        SSH_HOST: ${{ inputs.ssh_jumpbox_host }}
 
     - name: Kustomize build and commit
       run: |
@@ -99,4 +99,4 @@ jobs:
         sleep ${{ inputs.wait-argocd-pull }}
         ssh jumpbox 'argocd app sync ${{ inputs.application }} --timeout 30'
         ssh jumpbox 'argocd app wait --sync ${{ inputs.application }} --timeout 30'
-        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes-deployment }}'
+        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes_deployment }}'
