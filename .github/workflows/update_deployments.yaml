@@ -41,7 +41,7 @@ on:
         type: string
       wait-argocd-pull:
         required: false
-        default: 10
+        default: 5
         type: number
     secrets:
       private_access_token:
@@ -102,6 +102,12 @@ jobs:
     - name: Sync Argocd
       run: |
         sleep ${{ inputs.wait-argocd-pull }}
+        echo "argoc app sync"
         ssh jumpbox 'argocd app sync ${{ inputs.application }} --timeout 30'
+        echo "argoc app wait --sync"
         ssh jumpbox 'argocd app wait --sync ${{ inputs.application }} --timeout 30'
+
+    - name: Kubectl rollout restart deployment
+      run: |
+        echo "kubectl rollout restart deployment"
         ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes_deployment }}'
