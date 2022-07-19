@@ -38,10 +38,12 @@ jobs:
         password: ${{ secrets.registry_password }}
 
     - name: Build and push container image
-      uses: docker/build-push-action@v2
+      uses: docker/build-push-action@v3
       with:
         push: true
         tags: |
           ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ github.sha }}
           ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ inputs.tag }}
         file: ./Dockerfile
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
