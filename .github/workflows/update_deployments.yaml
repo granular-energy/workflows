@@ -95,9 +95,8 @@ jobs:
       run: |
         cd ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}
         $GITHUB_WORKSPACE/kustomize edit set image "${{ inputs.image_name }}=${{ inputs.image_name }}:${{ inputs.tag }}"
-        git add -A
-        if [ -z `git commit --short`]
-        then
+        if [ ! -z `git status --short`]; then
+          git add -A
           git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}"
           git push origin main
         fi
@@ -113,4 +112,4 @@ jobs:
     - name: Kubectl rollout restart deployment
       run: |
         echo "kubectl rollout restart deployment"
-        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes_deployment }}'
+        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes_deployment }}'
