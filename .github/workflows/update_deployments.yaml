@@ -13,7 +13,22 @@ on:
       overlay:
         required: true
         type: string
+      workspace:
+        required: true
+        type: string
       application:
+        required: true
+        type: string
+      kubernetes_deployment:
+        required: true
+        type: string
+      ssh_jumpbox_host:
+        required: true
+        type: string
+      ssh_jumpbox_port:
+        required: true
+        type: string
+      ssh_jumpbox_user:
         required: true
         type: string
       deployments-repository:
@@ -24,8 +39,14 @@ on:
         required: false
         default: "4.5.5"
         type: string
+      wait-argocd-pull:
+        required: false
+        default: 5
+        type: number
     secrets:
       private_access_token:
+        required: true
+      ssh_jumpbox_key:
         required: true
 
 jobs:
@@ -51,9 +72,44 @@ jobs:
         git config user.name "GranuBot"
         git config user.email "<>"
 
-    - run: |
-        cd ${{ inputs.application }}/overlays/${{ inputs.overlay }}
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh/
+        echo "$SSH_KEY" > ~/.ssh/jumpbox.key
+        chmod 600 ~/.ssh/jumpbox.key
+        cat >>~/.ssh/config <<END
+        Host jumpbox
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile ~/.ssh/jumpbox.key
+          StrictHostKeyChecking no
+          Port $SSH_PORT
+        END
+      env:
+        SSH_USER: ${{ inputs.ssh_jumpbox_user }}
+        SSH_KEY: ${{ secrets.ssh_jumpbox_key }}
+        SSH_HOST: ${{ inputs.ssh_jumpbox_host }}
+        SSH_PORT: ${{ inputs.ssh_jumpbox_port }}
+
+    - name: Kustomize build and commit
+      run: |
+        cd ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}
         $GITHUB_WORKSPACE/kustomize edit set image "${{ inputs.image_name }}=${{ inputs.image_name }}:${{ inputs.tag }}"
-        git add -A
-        git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.application }}/overlays/${{ inputs.overlay }}"
-        git push origin main
+        if [ ! -z `git status --short`]; then
+          git add -A
+          git commit -m "Set `${{ inputs.image_name }}` image tag to `${{ inputs.tag }}` for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}"
+          git push origin main
+        fi
+
+    - name: Sync Argocd
+      run: |
+        sleep ${{ inputs.wait-argocd-pull }}
+        echo "argoc app sync"
+        ssh jumpbox 'argocd app sync ${{ inputs.application }} --timeout 30'
+        echo "argoc app wait --sync"
+        ssh jumpbox 'argocd app wait --sync ${{ inputs.application }} --timeout 30'
+
+    - name: Kubectl rollout restart deployment
+      run: |
+        echo "kubectl rollout restart deployment"
+        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes_deployment }}'
