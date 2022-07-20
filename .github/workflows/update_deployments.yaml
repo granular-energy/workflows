@@ -106,9 +106,9 @@ jobs:
       run: |
         sleep ${{ inputs.wait-argocd-pull }}
         echo "argoc app sync"
-        ssh jumpbox 'argocd app sync ${{ inputs.application }} --timeout 30'
+        ssh jumpbox 'argocd app sync --assumeYes --timeout 30 ${{ inputs.application }}'
         echo "argoc app wait --sync"
-        ssh jumpbox 'argocd app wait --sync ${{ inputs.application }} --timeout 30'
+        ssh jumpbox 'argocd app wait --sync --timeout 30 ${{ inputs.application }} --timeout 30'
 
     - name: Kubectl rollout restart deployment
       run: |
