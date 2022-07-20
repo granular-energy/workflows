@@ -113,4 +113,4 @@ jobs:
     - name: Kubectl rollout restart deployment
       run: |
         echo "kubectl rollout restart deployment"
-        ssh jumpbox 'echo "${{ inputs.kubernetes_deployments }}" | jq -c \'split(",")|.[]\' | while read deployment; do; kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment \$deployment; done;'
+        ssh jumpbox 'echo "${{ inputs.kubernetes_deployments }}" | jq -Rrc '"'"'split(",")|.[]'"'"' | while read deployment; do kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment $deployment; done'
