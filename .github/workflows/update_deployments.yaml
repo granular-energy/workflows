@@ -19,7 +19,8 @@ on:
       application:
         required: true
         type: string
-      kubernetes_deployment:
+      kubernetes_deployments:
+        description: comma separated deployments list owned to the service
         required: true
         type: string
       ssh_jumpbox_host:
@@ -112,4 +113,4 @@ jobs:
     - name: Kubectl rollout restart deployment
       run: |
         echo "kubectl rollout restart deployment"
-        ssh jumpbox 'kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment ${{ inputs.kubernetes_deployment }}'
+        ssh jumpbox 'echo "${{ inputs.kubernetes_deployments }}" | jq -c \'split(",")|.[]\' | while read deployment; do; kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment \$deployment; done;'
