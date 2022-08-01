@@ -49,6 +49,8 @@ on:
         required: true
       ssh_jumpbox_key:
         required: true
+      argocd_token:
+        required: true
 
 jobs:
   update-image:
@@ -106,11 +108,11 @@ jobs:
       run: |
         sleep ${{ inputs.wait-argocd-pull }}
         echo "argoc app sync"
-        ssh jumpbox 'argocd app sync --assumeYes --timeout 30 ${{ inputs.application }}'
+        ssh jumpbox 'argocd app sync --auth-token ${{ secrets.argocd_token }} --assumeYes --timeout 30 ${{ inputs.application }}'
         echo "argoc app wait --sync"
-        ssh jumpbox 'argocd app wait --sync --timeout 30 ${{ inputs.application }} --timeout 30'
+        ssh jumpbox 'argocd app wait --auth-token ${{ secrets.argocd_token }} --sync --timeout 30 ${{ inputs.application }} --timeout 30'
 
     - name: Kubectl rollout restart deployment
       run: |
         echo "kubectl rollout restart deployment"
-        ssh jumpbox 'echo "${{ inputs.kubernetes_deployments }}" | jq -Rrc '"'"'split(",")|.[]'"'"' | while read deployment; do kubectl -n $(argocd app get ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment $deployment; done'
+        ssh jumpbox 'echo "${{ inputs.kubernetes_deployments }}" | jq -Rrc '"'"'split(",")|.[]'"'"' | while read deployment; do kubectl -n $(argocd app get --auth-token ${{ secrets.argocd_token }} ${{ inputs.application }} -ojson | jq -r ".spec.destination.namespace") rollout restart deployment $deployment; done'
