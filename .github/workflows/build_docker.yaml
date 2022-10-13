@@ -14,12 +14,15 @@ on:
       registry_name:
         required: true
         type: string
+      dockerfile:
+        required: false
+        default: "./Dockerfile"
+        type: string
     secrets:
       registry_username:
         required: true
       registry_password:
         required: true
-
 
 jobs:
   build:
@@ -44,6 +47,6 @@ jobs:
         tags: |
           ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ github.sha }}
           ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ inputs.tag }}
-        file: ./Dockerfile
+        file: ${{ inputs.dockerfile }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
