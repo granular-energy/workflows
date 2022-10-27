@@ -65,6 +65,7 @@ jobs:
 
     - name: Commit
       run: |
+        rm ./kustomize
         git add -A
         git commit -m "Set '${{ inputs.image_name }}' image tag to '${{ inputs.tag }}' for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}" || true
         git push origin main
