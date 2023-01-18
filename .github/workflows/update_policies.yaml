@@ -44,6 +44,7 @@ jobs:
         path: project
 
     - name: Setup git config
+      working-directory: ./deployments
       run: |
         git config user.name "GranuBot"
         git config user.email "<>"
@@ -61,8 +62,8 @@ jobs:
         EOF
 
     - name: Commit
+      working-directory: ./deployments
       run: |
-        rm ./kustomize
         git add -A
         git commit -m "Update policy from ${{ github.repository }}:${{ inputs.polices_file }} to ${{ inputs.polices_config_file }}" || true
         git push origin main
