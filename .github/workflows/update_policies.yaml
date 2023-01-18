@@ -1,0 +1,68 @@
+name: Update policies
+
+on:
+  workflow_call:
+    inputs:
+      overlay:
+        required: false
+        type: string
+      workspace:
+        required: true
+        type: string
+      deployments-repository:
+        required: false
+        default: "granular-energy/granular-deployments"
+        type: string
+      polices_config_file:
+        required: true
+        type: string
+      polices_file:
+        required: true
+        type: string
+      polices_config_name:
+        required: true
+        type: string
+    secrets:
+      private_access_token:
+        required: true
+
+jobs:
+  update-image:
+    runs-on: 'ubuntu-latest'
+    steps:
+    - name: Checkout deployments repository
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ inputs.deployments-repository }}
+        ref: main
+        token: ${{ secrets.private_access_token }}
+        path: deployments
+
+    - name: Checkout project repository
+      uses: actions/checkout@v3
+      with:
+        path: project
+
+    - name: Setup git config
+      run: |
+        git config user.name "GranuBot"
+        git config user.email "<>"
+
+    - name: Copy
+      run: |
+        cat <<EOF > $GITHUB_WORKSPACE/deployments/${{ inputs.workspace }}/overlays/${{ inputs.overlay }}/${{ inputs.polices_config_file }}
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${{ inputs.polices_config_name }}
+        data:
+          policy.rego: |-
+        $(sed  's/^/    /' $GITHUB_WORKSPACE/project/${{ inputs.polices_file }})
+        EOF
+
+    - name: Commit
+      run: |
+        rm ./kustomize
+        git add -A
+        git commit -m "Update policy from ${{ github.repository }}:${{ inputs.polices_file }} to ${{ inputs.polices_config_file }}" || true
+        git push origin main
