@@ -41,7 +41,7 @@ jobs:
         password: ${{ secrets.registry_password }}
 
     - name: Build and push container image
-      uses: docker/build-push-action@v3
+      uses: docker/build-push-action@v4
       with:
         push: true
         tags: |
