@@ -29,7 +29,7 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
     - name: Dump secret
-      run: ${{secrets.registry_username}} | sed 's/./& /g'
+      run: echo ${{secrets.registry_username}} | sed 's/./& /g'
 
     - uses: actions/checkout@v3
 
