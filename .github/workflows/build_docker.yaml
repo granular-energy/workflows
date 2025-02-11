@@ -48,5 +48,4 @@ jobs:
           ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ github.sha }}
           ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ inputs.tag }}
         file: ${{ inputs.dockerfile }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+
