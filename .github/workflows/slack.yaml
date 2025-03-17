@@ -1,0 +1,41 @@
+name: "Notify pusher"
+
+on:
+  workflow_call:
+    inputs:
+      message:
+        required: true
+        type: string
+    secrets:
+      slack-token:
+        required: true
+      slack-webhook:
+        required: true
+
+
+jobs:
+  message-slack:
+    runs-on: 'ubuntu-latest'
+    steps:
+    - name: Find user
+      id: email
+      uses: slackapi/slack-github-action@v2.0.0
+      with:
+        method: users.lookupByEmail # https://api.slack.com/methods/users.lookupByEmail
+        token: ${{ secrets.slack-token }}
+        payload: |
+              email: ${{ github.event.pusher.email }}
+
+    - name: Set user-id
+      if: ${{ steps.email.outputs.ok }}
+      run: |
+          SLACK_USER_ID=$(echo '${{ steps.email.outputs.response }}' | jq -r '.user.id')
+          echo "SLACK_USER_ID=$SLACK_USER_ID" >> $GITHUB_ENV
+
+    - name: Post a message
+      uses: slackapi/slack-github-action@v2.0.0
+      with:
+        webhook: ${{ secrets.slack-webhook }}
+        webhook-type: incoming-webhook
+        payload: |
+          "text": "<@${{ env.SLACK_USER_ID }}> ${{ inputs.message }}",
