@@ -12,12 +12,11 @@ on:
       slack-webhook:
         required: true
 
-
 jobs:
   message-slack:
     runs-on: 'ubuntu-latest'
     steps:
-    - name: Find user
+    - name: Find user by email
       id: email
       uses: slackapi/slack-github-action@v2.0.0
       with:
@@ -27,15 +26,37 @@ jobs:
               email: ${{ github.event.pusher.email }}
 
     - name: Set user-id
-      if: ${{ steps.email.outputs.ok }}
+      if: ${{ steps.email.outputs.ok && fromJSON(steps.email.outputs.response).ok == true}}
       run: |
+          set +x
           SLACK_USER_ID=$(echo '${{ steps.email.outputs.response }}' | jq -r '.user.id')
           echo "SLACK_USER_ID=$SLACK_USER_ID" >> $GITHUB_ENV
+          set -x
+
+    - name: List users
+      id: list-users
+      if: ${{ steps.email.outputs.ok && fromJSON(steps.email.outputs.response).ok == false}}
+      uses:  slackapi/slack-github-action@v2.0.0
+      with:
+        method: users.list # https://api.slack.com/methods/users.list
+        token: ${{ secrets.slack-token }}
+
+    - name: Search user by name
+      if: ${{ steps.list-users.outputs.ok}}
+      run: |
+        set +x
+        SLACK_USER_ID=$(jq -r --arg term '${{ github.event.pusher.name }}' '.members | map(select(.name == $term or .real_name==$term or .profile.display_name == $term)) | .[].id' <<< '${{ steps.list-users.outputs.response }}')
+        if [ -z "$SLACK_USER_ID" ]; then
+          SLACK_USER_ID=$(jq -r --arg term '${{ github.event.commits[0].author.name }}' '.members | map(select(.name == $term or .real_name==$term or .profile.display_name == $term)) | .[].id' <<< '${{ steps.list-users.outputs.response }}')
+        fi
+        echo "SLACK_USER_ID=$SLACK_USER_ID" >> $GITHUB_ENV
+        set -x
 
     - name: Post a message
+      if: ${{ env.SLACK_USER_ID != 'null'}}
       uses: slackapi/slack-github-action@v2.0.0
       with:
         webhook: ${{ secrets.slack-webhook }}
         webhook-type: incoming-webhook
         payload: |
-          "text": "<@${{ env.SLACK_USER_ID }}> ${{ inputs.message }}",
+          "text": "${{format('<@{0}>', env.SLACK_USER_ID)}}  ${{ inputs.message }}",
