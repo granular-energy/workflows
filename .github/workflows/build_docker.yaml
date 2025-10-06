@@ -19,7 +19,7 @@ on:
         default: "./Dockerfile"
         type: string
     secrets:
-      github_token:
+      gh_pat:
         required: false
       registry_username:
         required: true
@@ -53,4 +53,4 @@ jobs:
             ${{ inputs.registry_name }}/${{ inputs.image_name }}:${{ inputs.tag }}
           file: ${{ inputs.dockerfile }}
           secrets: |
-            github_token=${{ secrets.github_token }}
+            gh_pat=${{ secrets.gh_pat }}
