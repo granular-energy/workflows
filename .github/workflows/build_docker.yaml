@@ -26,9 +26,6 @@ on:
     secrets:
       gh_pat:
         required: false
-      sentry_auth_token:
-        description: Exposed to the docker build as the sentry_auth_token buildkit secret (for sourcemap uploads)
-        required: false
       registry_username:
         required: true
       registry_password:
@@ -67,4 +64,3 @@ jobs:
           build-args: ${{ inputs.build_args }}
           secrets: |
             gh_pat=${{ secrets.gh_pat }}
-            sentry_auth_token=${{ secrets.sentry_auth_token }}
