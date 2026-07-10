@@ -18,8 +18,16 @@ on:
         required: false
         default: "./Dockerfile"
         type: string
+      build_args:
+        description: Newline-separated list of build args passed to docker build (e.g. FOO=bar)
+        required: false
+        default: ""
+        type: string
     secrets:
       gh_pat:
+        required: false
+      sentry_auth_token:
+        description: Exposed to the docker build as the sentry_auth_token buildkit secret (for sourcemap uploads)
         required: false
       registry_username:
         required: true
@@ -56,5 +64,7 @@ jobs:
           # API, so the cache works again.
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: ${{ inputs.build_args }}
           secrets: |
             gh_pat=${{ secrets.gh_pat }}
+            sentry_auth_token=${{ secrets.sentry_auth_token }}
