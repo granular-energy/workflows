@@ -27,10 +27,22 @@ on:
     secrets:
       private_access_token:
         required: true
+      # Registry credentials (the granular-github-actions service principal,
+      # same values as build_docker.yaml). Used to lock the deployed tag so the
+      # nightly purge task in granularregistry cannot delete it while an
+      # overlay still pins it. Optional only for the rollout: once every
+      # caller passes them they become required.
+      registry_username:
+        required: false
+      registry_password:
+        required: false
 
 jobs:
   update-image:
     runs-on: 'ubuntu-latest'
+    env:
+      REGISTRY_USERNAME: ${{ secrets.registry_username }}
+      REGISTRY_PASSWORD: ${{ secrets.registry_password }}
     steps:
     - name: Checkout deployments repository
       uses: actions/checkout@v3
@@ -51,6 +63,41 @@ jobs:
         git config user.name "GranuBot"
         git config user.email "<>"
 
+    - name: Resolve kustomization directory
+      id: kdir
+      run: |
+        if [ -n "${{ inputs.overlay }}" ]; then
+          echo "path=${{ inputs.workspace }}/overlays/${{ inputs.overlay }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=${{ inputs.workspace }}/base" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Read currently pinned tag
+      id: current
+      run: |
+        OLD_TAG=$(yq -r '(.images // [])[] | select(.name == "${{ inputs.image_name }}") | .newTag // ""' "${{ steps.kdir.outputs.path }}/kustomization.yaml")
+        echo "tag=$OLD_TAG" >> "$GITHUB_OUTPUT"
+        echo "Currently pinned: ${OLD_TAG:-<none>}"
+
+    # Lock BEFORE the pin changes. If this fails the job fails and the overlay
+    # keeps pointing at the previous (still locked) tag, so a deployed tag is
+    # never left unprotected.
+    - name: Lock new tag against purging
+      if: env.REGISTRY_USERNAME != ''
+      run: |
+        set -euo pipefail
+        IMAGE="${{ inputs.image_name }}"
+        REGISTRY_HOST="${IMAGE%%/*}"
+        az acr repository update \
+          --name "${REGISTRY_HOST%%.*}" --suffix "${REGISTRY_HOST#*.}" \
+          --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" \
+          --image "${IMAGE#*/}:${{ inputs.tag }}" --delete-enabled false --output none
+        echo "Locked ${IMAGE}:${{ inputs.tag }}"
+
+    - name: Warn that the tag is not locked
+      if: env.REGISTRY_USERNAME == ''
+      run: echo "::warning::registry_username/registry_password not passed; ${{ inputs.image_name }}:${{ inputs.tag }} is not locked and can be purged while deployed. Pass the secrets as build_docker.yaml does."
+
     - name: Kustomize edit overlay
       if: ${{ inputs.overlay }}
       run: |
@@ -69,3 +116,24 @@ jobs:
         git add -A
         git commit -m "Set '${{ inputs.image_name }}' image tag to '${{ inputs.tag }}' for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}" || true
         git push origin main
+
+    # Release the previous tag, but only once nothing in the deployments repo
+    # references it any more (production and production-us often share one).
+    # Failure here must not fail the deploy: the worst case is one image that
+    # is never purged.
+    - name: Unlock previous tag
+      if: env.REGISTRY_USERNAME != '' && steps.current.outputs.tag != '' && steps.current.outputs.tag != inputs.tag
+      run: |
+        OLD_TAG="${{ steps.current.outputs.tag }}"
+        if git grep -q -- "$OLD_TAG" -- '*.yaml' '*.yml'; then
+          echo "$OLD_TAG is still referenced; leaving it locked"
+          exit 0
+        fi
+        IMAGE="${{ inputs.image_name }}"
+        REGISTRY_HOST="${IMAGE%%/*}"
+        az acr repository update \
+          --name "${REGISTRY_HOST%%.*}" --suffix "${REGISTRY_HOST#*.}" \
+          --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" \
+          --image "${IMAGE#*/}:$OLD_TAG" --delete-enabled true --output none \
+          && echo "Unlocked ${IMAGE}:$OLD_TAG" \
+          || echo "::warning::Could not unlock ${IMAGE}:$OLD_TAG; it stays protected from purging"
