@@ -94,6 +94,11 @@ jobs:
         echo "prev=$PREV_TAG" >> "$GITHUB_OUTPUT"
         echo "Currently pinned: ${OLD_TAG:-<none>}; before that: ${PREV_TAG:-<none>}"
 
+    # The same lock/unlock logic lives, inlined, in granular-platform-front's
+    # .github/workflows/deploy_feature_env.yml and remove_feature_env.yml
+    # (PR preview environments do not use this workflow). Keep them in step
+    # when changing anything about locking here.
+    #
     # Lock BEFORE newTag changes. If this fails the job fails and the overlay
     # keeps pointing at the previous (still locked) tag, so a deployed tag is
     # never left unprotected.
