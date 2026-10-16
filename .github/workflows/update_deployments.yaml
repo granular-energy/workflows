@@ -49,6 +49,9 @@ jobs:
         repository: ${{ inputs.deployments-repository }}
         ref: main
         token: ${{ secrets.private_access_token }}
+        # Full history: the unlock step walks this file's log to find the tag
+        # that was deployed before the previous one.
+        fetch-depth: 0
 
     - name: Install Kustomize
       run: |
@@ -71,12 +74,23 @@ jobs:
           echo "path=${{ inputs.workspace }}/base" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Read currently pinned tag
+    # OLD_TAG is what this overlay runs right now; PREV_TAG is the distinct tag
+    # it ran before that. After this deploy OLD_TAG stays locked so that
+    # reverting the pin commit still finds its image; PREV_TAG is released.
+    - name: Read currently and previously pinned tags
       id: current
       run: |
-        OLD_TAG=$(yq -r '(.images // [])[] | select(.name == "${{ inputs.image_name }}") | .newTag // ""' "${{ steps.kdir.outputs.path }}/kustomization.yaml")
+        KFILE="${{ steps.kdir.outputs.path }}/kustomization.yaml"
+        tag_at() { git show "$1:$KFILE" 2>/dev/null | yq -r '(.images // [])[] | select(.name == "${{ inputs.image_name }}") | .newTag // ""'; }
+        OLD_TAG=$(tag_at HEAD)
+        PREV_TAG=""
+        for c in $(git log -n 500 --format=%H -- "$KFILE"); do
+          t=$(tag_at "$c")
+          if [ -n "$t" ] && [ "$t" != "$OLD_TAG" ]; then PREV_TAG="$t"; break; fi
+        done
         echo "tag=$OLD_TAG" >> "$GITHUB_OUTPUT"
-        echo "Currently pinned: ${OLD_TAG:-<none>}"
+        echo "prev=$PREV_TAG" >> "$GITHUB_OUTPUT"
+        echo "Currently pinned: ${OLD_TAG:-<none>}; before that: ${PREV_TAG:-<none>}"
 
     # Lock BEFORE the pin changes. If this fails the job fails and the overlay
     # keeps pointing at the previous (still locked) tag, so a deployed tag is
@@ -111,14 +125,15 @@ jobs:
         git commit -m "Set '${{ inputs.image_name }}' image tag to '${{ inputs.tag }}' for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}" || true
         git push origin main
 
-    # Release the previous tag, but only once nothing in the deployments repo
+    # Release the tag from two deploys ago. The one just replaced stays locked
+    # as the rollback target, and only once nothing in the deployments repo
     # references it any more (production and production-us often share one).
     # Failure here must not fail the deploy: the worst case is one image that
     # is never purged.
-    - name: Unlock previous tag
-      if: steps.current.outputs.tag != '' && steps.current.outputs.tag != inputs.tag
+    - name: Unlock the tag from two deploys ago
+      if: steps.current.outputs.prev != '' && steps.current.outputs.prev != inputs.tag && steps.current.outputs.tag != inputs.tag
       run: |
-        OLD_TAG="${{ steps.current.outputs.tag }}"
+        OLD_TAG="${{ steps.current.outputs.prev }}"
         if git grep -q -- "$OLD_TAG" -- '*.yaml' '*.yml'; then
           echo "$OLD_TAG is still referenced; leaving it locked"
           exit 0
