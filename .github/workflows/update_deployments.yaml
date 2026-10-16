@@ -130,7 +130,17 @@ jobs:
         rm ./kustomize
         git add -A
         git commit -m "Set '${{ inputs.image_name }}' image tag to '${{ inputs.tag }}' for ${{ inputs.workspace }}/overlays/${{ inputs.overlay }}" || true
-        git push origin main
+        # main moves on every deploy, so a plain push loses the race whenever
+        # another commit lands between checkout and push. Rebase and retry.
+        for attempt in 1 2 3 4 5; do
+          if git push origin main; then exit 0; fi
+          echo "Push rejected (attempt $attempt of 5); rebasing onto current main"
+          sleep $((attempt * 3))
+          git fetch origin main
+          git rebase origin/main || { git rebase --abort; echo "::error::Rebase conflict while retrying the push"; exit 1; }
+        done
+        echo "::error::Could not push to main after 5 attempts"
+        exit 1
 
     # Release the tag from two deploys ago. The one just replaced stays locked
     # as the rollback target, and only once nothing in the deployments repo
