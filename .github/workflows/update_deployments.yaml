@@ -74,9 +74,10 @@ jobs:
           echo "path=${{ inputs.workspace }}/base" >> "$GITHUB_OUTPUT"
         fi
 
-    # OLD_TAG is what this overlay runs right now; PREV_TAG is the distinct tag
-    # it ran before that. After this deploy OLD_TAG stays locked so that
-    # reverting the pin commit still finds its image; PREV_TAG is released.
+    # OLD_TAG is the SHA tag the overlay this run was called for (inputs.overlay)
+    # points at right now; PREV_TAG is the distinct SHA tag it pointed at before
+    # that. After this deploy OLD_TAG stays locked, so reverting the GranuBot
+    # commit that changed newTag still finds its image; PREV_TAG is released.
     - name: Read currently and previously pinned tags
       id: current
       run: |
@@ -92,7 +93,7 @@ jobs:
         echo "prev=$PREV_TAG" >> "$GITHUB_OUTPUT"
         echo "Currently pinned: ${OLD_TAG:-<none>}; before that: ${PREV_TAG:-<none>}"
 
-    # Lock BEFORE the pin changes. If this fails the job fails and the overlay
+    # Lock BEFORE newTag changes. If this fails the job fails and the overlay
     # keeps pointing at the previous (still locked) tag, so a deployed tag is
     # never left unprotected.
     - name: Lock new tag against purging
