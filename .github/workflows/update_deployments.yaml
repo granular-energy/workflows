@@ -103,7 +103,7 @@ jobs:
         IMAGE="${{ inputs.image_name }}"
         REGISTRY_HOST="${IMAGE%%/*}"
         az acr repository update \
-          --name "${REGISTRY_HOST%%.*}" --suffix "${REGISTRY_HOST#*.}" \
+          --name "${REGISTRY_HOST%%.*}" \
           --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" \
           --image "${IMAGE#*/}:${{ inputs.tag }}" --delete-enabled false --output none
         echo "Locked ${IMAGE}:${{ inputs.tag }}"
@@ -143,7 +143,7 @@ jobs:
         IMAGE="${{ inputs.image_name }}"
         REGISTRY_HOST="${IMAGE%%/*}"
         az acr repository update \
-          --name "${REGISTRY_HOST%%.*}" --suffix "${REGISTRY_HOST#*.}" \
+          --name "${REGISTRY_HOST%%.*}" \
           --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" \
           --image "${IMAGE#*/}:$OLD_TAG" --delete-enabled true --output none \
           && echo "Unlocked ${IMAGE}:$OLD_TAG" \
