@@ -75,9 +75,10 @@ jobs:
         fi
 
     # OLD_TAG is the SHA tag the overlay this run was called for (inputs.overlay)
-    # points at right now; PREV_TAG is the distinct SHA tag it pointed at before
-    # that. After this deploy OLD_TAG stays locked, so reverting the GranuBot
-    # commit that changed newTag still finds its image; PREV_TAG is released.
+    # PREV_TAG is the distinct SHA tag it pointed at before
+    # that. After this deploy OLD_TAG stays locked, so if the deployments commit this
+    # run creates (the newTag change) is reverted, OLD_TAG will not have been
+    # purged. PREV_TAG is released.
     - name: Read currently and previously pinned tags
       id: current
       run: |
