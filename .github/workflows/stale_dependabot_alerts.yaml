@@ -1,0 +1,65 @@
+name: "Stale Dependabot alerts"
+
+# The caller holds the schedule and must grant `vulnerability-alerts: read` to the calling job,
+# because a reusable workflow gets the caller's GITHUB_TOKEN and can only reduce its permissions.
+on:
+  workflow_call:
+    inputs:
+      cc:
+        description: "Slack mention appended to each message, for example <!subteam^S055GTVEXCY|@backend>"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      slack-webhook:
+        description: "Incoming webhook of the Slack channel that gets the report"
+        required: true
+
+defaults:
+  run:
+    # Without an explicit shell, GitHub runs `bash -e` with no pipefail, so a failed `gh api` would be hidden.
+    shell: bash
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify open dependabot alerts
+        id: alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          stale=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
+            | jq -r --argjson now "$(date +%s)" '
+              .[]
+              | (($now - (.created_at | fromdateiso8601)) / 86400 | floor) as $age
+              | {critical: 2, high: 7, medium: 30, low: 90}[.security_advisory.severity] as $limit
+              | select($age >= $limit)
+              | "• <\(.html_url)|#\(.number)> \(.security_advisory.severity) \(.dependency.package.name), open \($age) days"')
+          {
+            echo "count=$(printf '%s' "$stale" | grep -c . || true)"
+            echo "lines<<STALE_ALERTS_EOF"
+            echo "$stale"
+            echo "STALE_ALERTS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post to Slack
+        if: steps.alerts.outputs.count != '0'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook }}
+          TEXT: |-
+            Dependabot alerts in ${{ github.repository }} past their deadline: ${{ steps.alerts.outputs.count }}${{ inputs.cc && format(' (cc {0})', inputs.cc) || '' }}
+            ${{ steps.alerts.outputs.lines }}
+        run: |
+          jq -n --arg text "$TEXT" '{text: $text}' \
+            | curl -sSf -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
+
+      - name: Report failure
+        if: failure() && steps.alerts.outcome == 'failure'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook }}
+          TEXT: "Stale Dependabot alert check failed in ${{ github.repository }}: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|view run>${{ inputs.cc && format(' (cc {0})', inputs.cc) || '' }}"
+        run: |
+          jq -n --arg text "$TEXT" '{text: $text}' \
+            | curl -sSf -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
