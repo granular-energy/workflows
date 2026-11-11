@@ -39,6 +39,13 @@ on:
 jobs:
   update-image:
     runs-on: 'ubuntu-latest'
+    # Two runs that set the same image in the same kustomization edit the same
+    # newTag line, so the rebase in the Commit step stops on a conflict. Queue
+    # them instead. GitHub cancels a queued run when a newer one joins the
+    # group, so the newest queued tag is the one that lands.
+    concurrency:
+      group: update-deployments-${{ inputs.image_name }}-${{ inputs.workspace }}-${{ inputs.overlay }}
+      cancel-in-progress: false
     env:
       REGISTRY_USERNAME: ${{ secrets.registry_username }}
       REGISTRY_PASSWORD: ${{ secrets.registry_password }}
